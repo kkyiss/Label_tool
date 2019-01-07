@@ -2,66 +2,51 @@
 # -*- coding:utf8 -*-
 import numpy as np
 import matplotlib.patches as patches
+import matplotlib.pyplot as plt
 
 class DraggablePoint:
     showverts = True
-    epsilon = 10  # max pixel distance to count as a vertex hit
-    def __init__(self,point):
-        self.ax = point.axes
-        self.point = point
-        self.background = None
+    epsilon = 50  # max pixel distance to count as a vertex hit
 
-        x, y = zip(*self.point.get_path().vertices)
-        self.line, = self.ax.plot(x, y, marker='o', linestyle='dashed', markerfacecolor='r', color='blue', lw=2, alpha=0.5)
+    def __init__(self, pathpatch):
+
+        self.ax = pathpatch.axes
+        canvas = self.ax.figure.canvas
+        self.pathpatch = pathpatch
+        self.pathpatch.set_animated(True)
+
+        x, y = zip(*self.pathpatch.get_path().vertices)
+
+        self.line, = self.ax.plot(x, y, marker='o', markerfacecolor='r', linestyle='dashed', animated=True)
+
         self._ind = None  # the active vert
 
-
-    def connect(self):
-        'connect to all the events we need'
-        self.cidpress = self.point.figure.canvas.mpl_connect('button_press_event', self.on_press)
-        self.cidrelease = self.point.figure.canvas.mpl_connect('button_release_event', self.on_release)
-        self.cidmotion = self.point.figure.canvas.mpl_connect('motion_notify_event', self.on_motion)
-
-    def on_press(self, event):
-        if event.inaxes != self.point.axes: return
-        contains, attrd = self.point.contains(event)
-        if not contains: return
-
-        if event.button != 1: return
-        if not self.showverts: return
-        self._ind = self.get_ind_under_point(event)
-
-        # draw everything but the selected rectangle and store the pixel buffer
-        canvas = self.point.figure.canvas
-        axes = self.point.axes
-        self.point.set_animated(True)
-        self.line.set_animated(True)
-
-        canvas.draw()
-        self.background = canvas.copy_from_bbox(self.point.axes.bbox)
-
-        # now redraw just the rectangle
-        axes.draw_artist(self.point)
-
-        # and blit just the redrawn area
-        canvas.blit(axes.bbox)
-        print "press"
-
+        canvas.mpl_connect('draw_event', self.draw_callback)
+        canvas.mpl_connect('button_press_event', self.button_press_callback)
+        canvas.mpl_connect('key_press_event', self.key_press_callback)
+        canvas.mpl_connect('button_release_event', self.button_release_callback)
+        canvas.mpl_connect('motion_notify_event', self.motion_notify_callback)
+        self.canvas = canvas
 
     def draw_callback(self, event):
-        pass
+        self.background = self.canvas.copy_from_bbox(self.ax.bbox)
+        self.ax.draw_artist(self.pathpatch)
+        self.ax.draw_artist(self.line)
+        self.canvas.blit(self.ax.bbox)
 
-
-    def pathpatch_changed(self, point):
-        pass
-
+    def pathpatch_changed(self, pathpatch):
+        'this method is called whenever the pathpatchgon object is called'
+        # only copy the artist props to the line (except visibility)
+        vis = self.line.get_visible()
+        plt.Artist.update_from(self.line, pathpatch)
+        self.line.set_visible(vis)  # don't use the pathpatch visibility state
 
     def get_ind_under_point(self, event):
         'get the index of the vertex under point if within epsilon tolerance'
 
         # display coords
-        xy = np.asarray(self.point.get_path().vertices)
-        xyt = self.point.get_transform().transform(xy)
+        xy = np.asarray(self.pathpatch.get_path().vertices)
+        xyt = self.pathpatch.get_transform().transform(xy)
         xt, yt = xyt[:, 0], xyt[:, 1]
         d = np.sqrt((xt - event.x)**2 + (yt - event.y)**2)
         ind = d.argmin()
@@ -71,59 +56,57 @@ class DraggablePoint:
 
         return ind
 
+    def button_press_callback(self, event):
+        'whenever a mouse button is pressed'
+        if not self.showverts:
+            return
+        if event.inaxes is None:
+            return
+        if event.button != 1:
+            return
+        self._ind = self.get_ind_under_point(event)
 
-    def on_release(self, event):
-        'on release we reset the press data'
-
+    def button_release_callback(self, event):
+        'whenever a mouse button is released'
+        if not self.showverts:
+            return
         if event.button != 1:
             return
         self._ind = None
 
-
-        # turn off the rect animation property and reset the background
-        self.point.set_animated(False)
-        self.line.set_animated(False)
-        self.background = None
-
-        # redraw the full figure
-        self.point.figure.canvas.draw()
-        print "release"
-
     def key_press_callback(self, event):
-        pass
+        'whenever a key is pressed'
+        if not event.inaxes:
+            return
+        if event.key == 't':
+            self.showverts = not self.showverts
+            self.line.set_visible(self.showverts)
+            if not self.showverts:
+                self._ind = None
 
-    def on_motion(self, event):
+        self.canvas.draw()
+
+    def motion_notify_callback(self, event):
+        'on mouse movement'
+        if not self.showverts:
+            return
         if self._ind is None:
             return
-        if event.inaxes != self.point.axes: return
+        if event.inaxes is None:
+            return
         if event.button != 1:
             return
         x, y = event.xdata, event.ydata
 
-        vertices = self.point.get_path().vertices
+        vertices = self.pathpatch.get_path().vertices
 
         vertices[self._ind] = x, y
         self.line.set_data(zip(*vertices))
 
-        canvas = self.point.figure.canvas
-        axes = self.point.axes
-
-        # restore the background region
-        canvas.restore_region(self.background)
-
-        # redraw just the current rectangle
-        axes.draw_artist(self.point)
-        axes.draw_artist(self.line)
-
-        # blit just the redrawn area
-        canvas.blit(axes.bbox)
-        print "motion"
-
-    def disconnect(self):
-        'disconnect all the stored connection ids'
-        self.point.figure.canvas.mpl_disconnect(self.cidpress)
-        self.point.figure.canvas.mpl_disconnect(self.cidrelease)
-        self.point.figure.canvas.mpl_disconnect(self.cidmotion)
+        self.canvas.restore_region(self.background)
+        self.ax.draw_artist(self.pathpatch)
+        self.ax.draw_artist(self.line)
+        self.canvas.blit(self.ax.bbox)
 
     def get_position(self):
-        return self.point.get_path().vertices
+        return self.pathpatch.get_path().vertices

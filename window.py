@@ -75,8 +75,8 @@ class Window(QWidget):
         patch = patches.PathPatch(path, facecolor='none', edgecolor='r', lw=3)
 
         self.axes.add_patch(patch)
+
         dr = DraggablePoint(patch)
-        dr.connect()
         self.list_points.append(dr)
 
     def plot(self):
