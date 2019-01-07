@@ -15,14 +15,14 @@ import matplotlib.image as mpimg
 from drag import DraggablePoint
 
 # set initial 4 points
-x1=400
+x1=800
 y1=100
 
-x2=300
+x2=500
 y2=200
 
-x3=600
-y3=450
+x3=300
+y3=300
 
 x4=200
 y4=500
@@ -68,7 +68,6 @@ class Window(QWidget):
         self.axes.imshow(img)
 
     def plotDraggablePoints(self):
-
         """Plot and define the 2 draggable points of the baseline"""
         verts = [(x1, y1),(x2, y2),(x3, y3),(x4, y4),]
         codes = [Path.MOVETO,Path.CURVE4,Path.CURVE4,Path.CURVE4,]

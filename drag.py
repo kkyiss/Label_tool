@@ -9,7 +9,6 @@ class DraggablePoint:
     def __init__(self,point):
         self.ax = point.axes
         self.point = point
-        self.press = None
         self.background = None
 
         x, y = zip(*self.point.get_path().vertices)
@@ -96,8 +95,7 @@ class DraggablePoint:
     def on_motion(self, event):
         if self._ind is None:
             return
-        if event.inaxes is None:
-            return
+        if event.inaxes != self.point.axes: return
         if event.button != 1:
             return
         x, y = event.xdata, event.ydata
@@ -107,10 +105,18 @@ class DraggablePoint:
         vertices[self._ind] = x, y
         self.line.set_data(zip(*vertices))
 
-        self.point.figure.canvas.restore_region(self.background)
-        self.ax.draw_artist(self.point)
-        self.ax.draw_artist(self.line)
-        self.point.figure.canvas.blit(self.ax.bbox)
+        canvas = self.point.figure.canvas
+        axes = self.point.axes
+
+        # restore the background region
+        canvas.restore_region(self.background)
+
+        # redraw just the current rectangle
+        axes.draw_artist(self.point)
+        axes.draw_artist(self.line)
+
+        # blit just the redrawn area
+        canvas.blit(axes.bbox)
         print "motion"
 
     def disconnect(self):
