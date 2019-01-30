@@ -6,10 +6,9 @@ import matplotlib.pyplot as plt
 
 class DraggablePoint:
     showverts = True
-    epsilon = 50  # max pixel distance to count as a vertex hit
+    epsilon = 5  # max pixel distance to count as a vertex hit
 
     def __init__(self, pathpatch):
-
         self.ax = pathpatch.axes
         canvas = self.ax.figure.canvas
         self.pathpatch = pathpatch
@@ -21,12 +20,15 @@ class DraggablePoint:
 
         self._ind = None  # the active vert
 
-        canvas.mpl_connect('draw_event', self.draw_callback)
-        canvas.mpl_connect('button_press_event', self.button_press_callback)
-        canvas.mpl_connect('key_press_event', self.key_press_callback)
-        canvas.mpl_connect('button_release_event', self.button_release_callback)
-        canvas.mpl_connect('motion_notify_event', self.motion_notify_callback)
         self.canvas = canvas
+
+    def connect(self):
+        self.canvas.mpl_connect('draw_event', self.draw_callback)
+        self.cidpress = self.canvas.mpl_connect('button_press_event', self.button_press_callback)
+        self.canvas.mpl_connect('key_press_event', self.key_press_callback)
+        self.cidrelease = self.canvas.mpl_connect('button_release_event', self.button_release_callback)
+        self.cidmotion = self.canvas.mpl_connect('motion_notify_event', self.motion_notify_callback)
+
 
     def draw_callback(self, event):
         self.background = self.canvas.copy_from_bbox(self.ax.bbox)
@@ -35,6 +37,7 @@ class DraggablePoint:
         self.canvas.blit(self.ax.bbox)
 
     def pathpatch_changed(self, pathpatch):
+        print "pathpatch_changed"
         'this method is called whenever the pathpatchgon object is called'
         # only copy the artist props to the line (except visibility)
         vis = self.line.get_visible()
@@ -57,6 +60,7 @@ class DraggablePoint:
         return ind
 
     def button_press_callback(self, event):
+        print 'button_press_callback'
         'whenever a mouse button is pressed'
         if not self.showverts:
             return
@@ -67,6 +71,7 @@ class DraggablePoint:
         self._ind = self.get_ind_under_point(event)
 
     def button_release_callback(self, event):
+        print 'button_release_callback'
         'whenever a mouse button is released'
         if not self.showverts:
             return
@@ -75,6 +80,7 @@ class DraggablePoint:
         self._ind = None
 
     def key_press_callback(self, event):
+        print 'key_press_callback'
         'whenever a key is pressed'
         if not event.inaxes:
             return
@@ -107,6 +113,14 @@ class DraggablePoint:
         self.ax.draw_artist(self.pathpatch)
         self.ax.draw_artist(self.line)
         self.canvas.blit(self.ax.bbox)
+        self.canvas.draw()
+
+    def disconnect(self):
+        'disconnect all the stored connection ids'
+        self.canvas.mpl_disconnect(self.cidpress)
+        self.canvas.mpl_disconnect(self.cidrelease)
+        self.canvas.mpl_disconnect(self.cidmotion)
+
 
     def get_position(self):
         return self.pathpatch.get_path().vertices

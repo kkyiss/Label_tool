@@ -10,6 +10,7 @@ from matplotlib.figure import Figure
 from matplotlib.path import Path
 import matplotlib.patches as patches
 import matplotlib.image as mpimg
+import random, re
 
 # Personnal modules
 from drag import DraggablePoint
@@ -28,16 +29,15 @@ x4=200
 y4=500
 
 class Window(QWidget):
-    def __init__(self,img_path):
+    imgIndex = 0
+
+    def __init__(self,path):
         super(Window,self).__init__()
-        self.setWindowTitle("Images")
+        img_path = os.getcwd()+ '/' +path
 
         # a figure instance to plot on
         self.figure = Figure(tight_layout=True)
         self.axes = self.figure.add_subplot(111)
-
-        # plot background image
-        self.plotBackGround(img_path)
 
         # this is the Canvas Widget that displays the `figure`
         # it takes the `figure` instance as a parameter to __init__
@@ -46,30 +46,83 @@ class Window(QWidget):
         self.canvas.setSizePolicy(sizePolicy)        
         self.canvas.updateGeometry()
 
+        # To store the draggable polygon
+        self.list_points = []
+
+        # To store img path
+        self.list_img_path = []
+#        self.loadImg(os.getcwd()+"/data/train/1492635012549702766")
+        self.loadImg(img_path)
+
+        # plot background image
+        self.plotBackGround(img_path)
+
         # Just some button connected to `plot` method
-        self.button = QPushButton('Plot')
-        self.button.clicked.connect(self.plot)
+        loadImgButton = QPushButton('Load Image')
+        loadImgButton.clicked.connect(lambda: self.plotBackGround(img_path))
+
+        curPosButton = QPushButton('Show current position')
+        curPosButton.clicked.connect(self.showPosition)
+
+        addLaneButton = QPushButton('Add new Lane')
+        addLaneButton.clicked.connect(self.addNewLine)
+
+        delLaneButton = QPushButton('Del last Lane')
+        delLaneButton.clicked.connect(self.delLastLine)
+
+        saveImgButton = QPushButton('Save as png')
+#        saveImgButton.clicked.connect(self.plot)
+
+        saveTextButton = QPushButton('Save as text')
+#        saveTextButton.clicked.connect(self.disconnect)
+
+        # Prepare a group button
+        upperLayout = QHBoxLayout()
+        upperLayout.addWidget(loadImgButton)
+        upperLayout.addWidget(curPosButton)
+        upperLayout.addWidget(addLaneButton)
+
+        lowerLayout = QHBoxLayout()
+        lowerLayout.addWidget(delLaneButton)
+        lowerLayout.addWidget(saveImgButton)
+        lowerLayout.addWidget(saveTextButton)
 
         # set the layout
         layout = QVBoxLayout()
         layout.addWidget(self.canvas)
-        layout.addWidget(self.button)
+        layout.addLayout(upperLayout)
+        layout.addLayout(lowerLayout)
         self.setLayout(layout)
 
-        # To store the draggable polygon
-        self.list_points = []
-        self.plotDraggablePoints()
-
     def plotBackGround(self,img_path):
-        img = mpimg.imread(os.getcwd()+"/data/train/1492635012549702766/12.jpg")
-#        img = mpimg.imread(os.getcwd()+img_path)
+        ''' Plot background method '''
+        # clean up list points
+        if self.list_points:
+            self.butdisconnect()
+            self.list_points = []
+
+        if self.imgIndex == len(self.list_img_path):
+            print 'Reach the end of file'
+            self.imgIndex = len(self.list_img_path)-1
+
+#        path = os.getcwd()+ "/data/train/1492635012549702766/" + self.list_img_path[self.imgIndex]
+        path = img_path + "/" + self.list_img_path[self.imgIndex]
+
+        img = mpimg.imread(path)
         height, width, channels = img.shape
         self.resize(width,height)
         self.axes.imshow(img)
 
-    def plotDraggablePoints(self):
-        """Plot and define the 2 draggable points of the baseline"""
-        verts = [(x1, y1),(x2, y2),(x3, y3),(x4, y4),]
+        # Edit window title
+        self.setWindowTitle(self.list_img_path[self.imgIndex])
+        self.canvas.draw()
+
+        # increase img index
+        self.imgIndex += 1
+
+    def plotDraggablePoints(self, rd):
+        ''' Plot and define the 2 draggable points of the baseline '''
+        verts = [(x1+rd, y1),(x2+rd, y2),(x3+rd, y3),(x4+rd, y4),]
         codes = [Path.MOVETO,Path.CURVE4,Path.CURVE4,Path.CURVE4,]
         path = Path(verts, codes)
         patch = patches.PathPatch(path, facecolor='none', edgecolor='r', lw=3)
@@ -79,11 +132,43 @@ class Window(QWidget):
         dr = DraggablePoint(patch)
         self.list_points.append(dr)
 
-    def plot(self):
-        ''' plot current 4 points position'''
+    def loadImg(self,directory):
+        ''' store img name to list dict '''
+        for filename in sorted(os.listdir(directory), key=lambda x:int(x[:-4])):
+            if filename.endswith(".jpg") or filename.endswith(".png"):
+                self.list_img_path.append(filename)
+            else:
+                sys.exit("Filename not end with .jpg or .png")
+
+    def showPosition(self):
+        ''' display current 4 points position '''
+        for pts in self.list_points:
+            print pts.get_position()
+
+    def addNewLine(self):
+        ''' add a new line points to figure '''
+        rd = random.randint(10,99)
+        self.plotDraggablePoints(rd)
+        self.butconnect()
+
+    def delLastLine(self):
+        ''' del the last line points to figure '''
+        if self.list_points:
+            self.butdisconnect()
+            self.list_points.pop()
+            self.butconnect()
+
+    def butconnect(self):
+        ''' connect current DraggablePoints '''
+        for pts in self.list_points:
+            pts.connect()
         self.canvas.draw()
-        print self.list_points[0].get_position()
-#        self.figure.canvas.mpl_connect('button_press_event', self.onclick)
+
+    def butdisconnect(self):
+        ''' disconnect current DraggablePoints '''
+        for pts in self.list_points:
+            pts.disconnect()
+        self.canvas.draw()
 
     def onclick(self,event):
         print 'button=%d, x=%d, y=%d, xdata=%f, ydata=%f'%(event.button, event.x, event.y, event.xdata, event.ydata)
