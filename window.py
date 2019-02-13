@@ -55,7 +55,7 @@ class Window(QWidget):
         self.loadImg(img_path)
 
         # plot background image
-        self.plotBackGround(img_path)
+        self.plotBackGround(img_path,True)
 
         # Just some button connected to `plot` method
         loadImgButton = QPushButton('Load Image')
@@ -71,7 +71,7 @@ class Window(QWidget):
         delLaneButton.clicked.connect(self.delLastLine)
 
         saveImgButton = QPushButton('Save as png')
-#        saveImgButton.clicked.connect(self.plot)
+        saveImgButton.clicked.connect(self.savePng)
 
         saveTextButton = QPushButton('Save as text')
 #        saveTextButton.clicked.connect(self.disconnect)
@@ -94,7 +94,7 @@ class Window(QWidget):
         layout.addLayout(lowerLayout)
         self.setLayout(layout)
 
-    def plotBackGround(self,img_path):
+    def plotBackGround(self,img_path,flag=False):
         ''' Plot background method '''
         # clean up list points
         if self.list_points:
@@ -111,7 +111,11 @@ class Window(QWidget):
         img = mpimg.imread(path)
         height, width, channels = img.shape
         self.resize(width,height)
-        self.axes.imshow(img)
+
+        if flag:
+            self.pyt = self.axes.imshow(img)
+        else:
+            self.pyt.set_data(img)
 
         # Edit window title
         self.setWindowTitle(self.list_img_path[self.imgIndex])
@@ -144,6 +148,7 @@ class Window(QWidget):
         ''' display current 4 points position '''
         for pts in self.list_points:
             print pts.get_position()
+        print ""
 
     def addNewLine(self):
         ''' add a new line points to figure '''
@@ -155,8 +160,13 @@ class Window(QWidget):
         ''' del the last line points to figure '''
         if self.list_points:
             self.butdisconnect()
+            self.list_points[-1].line.remove()
             self.list_points.pop()
             self.butconnect()
+
+        if self.axes.patches:
+            self.axes.patches[-1].remove()
+
 
     def butconnect(self):
         ''' connect current DraggablePoints '''
@@ -169,6 +179,10 @@ class Window(QWidget):
         for pts in self.list_points:
             pts.disconnect()
         self.canvas.draw()
+
+    def savePng(self):
+        ''' save current figure to png '''
+        self.figure.savefig('test.png')
 
     def onclick(self,event):
         print 'button=%d, x=%d, y=%d, xdata=%f, ydata=%f'%(event.button, event.x, event.y, event.xdata, event.ydata)

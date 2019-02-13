@@ -60,7 +60,6 @@ class DraggablePoint:
         return ind
 
     def button_press_callback(self, event):
-        print 'button_press_callback'
         'whenever a mouse button is pressed'
         if not self.showverts:
             return
@@ -71,7 +70,6 @@ class DraggablePoint:
         self._ind = self.get_ind_under_point(event)
 
     def button_release_callback(self, event):
-        print 'button_release_callback'
         'whenever a mouse button is released'
         if not self.showverts:
             return
