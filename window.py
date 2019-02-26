@@ -64,8 +64,11 @@ class Window(QWidget):
         curPosButton = QPushButton('Show current position')
         curPosButton.clicked.connect(self.showPosition)
 
-        addLaneButton = QPushButton('Add new Lane')
-        addLaneButton.clicked.connect(self.addNewLine)
+#        addLaneButton = QPushButton('Add new Lane')
+#        addLaneButton.clicked.connect(self.addNewLine)
+        addLaneButton = QComboBox()
+        addLaneButton.addItems(["--Select line type--","White line", "White dash line", "Yellow line"])
+        addLaneButton.activated.connect(self.addNewLine)
 
         delLaneButton = QPushButton('Del last Lane')
         delLaneButton.clicked.connect(self.delLastLine)
@@ -124,12 +127,12 @@ class Window(QWidget):
         # increase img index
         self.imgIndex += 1
 
-    def plotDraggablePoints(self, rd):
+    def plotDraggablePoints(self, lineType, lineColor, rd):
         ''' Plot and define the 2 draggable points of the baseline '''
         verts = [(x1+rd, y1),(x2+rd, y2),(x3+rd, y3),(x4+rd, y4),]
         codes = [Path.MOVETO,Path.CURVE4,Path.CURVE4,Path.CURVE4,]
         path = Path(verts, codes)
-        patch = patches.PathPatch(path, facecolor='none', edgecolor='r', lw=3)
+        patch = patches.PathPatch(path, facecolor='none', edgecolor=lineColor, lw=3, linestyle=lineType)
 
         self.axes.add_patch(patch)
 
@@ -150,11 +153,25 @@ class Window(QWidget):
             print pts.get_position()
         print ""
 
-    def addNewLine(self):
+    def addNewLine(self,select):
         ''' add a new line points to figure '''
         rd = random.randint(10,99)
-        self.plotDraggablePoints(rd)
-        self.butconnect()
+        lineType = ''
+        lineColor = ''
+
+        if select == 1:
+            lineType = '-'
+            lineColor = 'r'
+        elif select == 2:
+            lineType = '--'
+            lineColor = 'r'
+        elif select == 3:
+            lineType = '-'
+            lineColor = 'b'
+
+        if select != 0:
+            self.plotDraggablePoints(lineType,lineColor,rd)
+            self.butconnect()
 
     def delLastLine(self):
         ''' del the last line points to figure '''
