@@ -30,6 +30,7 @@ y4=500
 
 class Window(QWidget):
     imgIndex = 0
+    saveFlag = True
 
     def __init__(self,path):
         super(Window,self).__init__()
@@ -48,11 +49,16 @@ class Window(QWidget):
 
         # To store the draggable polygon
         self.list_points = []
+        self.list_points_type = []
 
         # To store img path
         self.list_img_path = []
 #        self.loadImg(os.getcwd()+"/data/train/1492635012549702766")
         self.loadImg(img_path)
+
+        # To generate output path
+        if not os.path.exists(img_path+"label"):
+            os.makedirs(img_path+"label")
 
         # plot background image
         self.plotBackGround(img_path,True)
@@ -64,8 +70,6 @@ class Window(QWidget):
         curPosButton = QPushButton('Show current position')
         curPosButton.clicked.connect(self.showPosition)
 
-#        addLaneButton = QPushButton('Add new Lane')
-#        addLaneButton.clicked.connect(self.addNewLine)
         addLaneButton = QComboBox()
         addLaneButton.addItems(["--Select line type--","White line", "White dash line", "Yellow line"])
         addLaneButton.activated.connect(self.addNewLine)
@@ -77,7 +81,7 @@ class Window(QWidget):
         saveImgButton.clicked.connect(self.savePng)
 
         saveTextButton = QPushButton('Save as text')
-#        saveTextButton.clicked.connect(self.disconnect)
+        saveTextButton.clicked.connect(lambda: self.saveText(img_path))
 
         # Prepare a group button
         upperLayout = QHBoxLayout()
@@ -97,35 +101,43 @@ class Window(QWidget):
         layout.addLayout(lowerLayout)
         self.setLayout(layout)
 
-    def plotBackGround(self,img_path,flag=False):
+    def plotBackGround(self,img_path,isFirst=False):
         ''' Plot background method '''
-        # clean up list points
-        if self.list_points:
-            self.butdisconnect()
-            self.list_points = []
+        isPlot = True
+        isEdge = False
 
-        if self.imgIndex == len(self.list_img_path):
-            print 'Reach the end of file'
-            self.imgIndex = len(self.list_img_path)-1
+        # if not saved, popup message box
+        if not isFirst and not self.saveFlag:
+            print 'msg box' #msg box
+            isPlot = self.msgBoxEvent()
 
-#        path = os.getcwd()+ "/data/train/1492635012549702766/" + self.list_img_path[self.imgIndex]
-        path = img_path + "/" + self.list_img_path[self.imgIndex]
+        if isPlot:
+            if self.imgIndex == len(self.list_img_path):
+                isEdge = self.msgBoxReachEdgeEvent()
 
-        img = mpimg.imread(path)
-        height, width, channels = img.shape
-        self.resize(width,height)
+            if not isEdge:
+                # clean up list points
+                while self.list_points:
+                    self.delLastLine()
 
-        if flag:
-            self.pyt = self.axes.imshow(img)
-        else:
-            self.pyt.set_data(img)
+#                path = os.getcwd()+ "/data/train/1492635012549702766/" + self.list_img_path[self.imgIndex]
+                path = img_path + "/" + self.list_img_path[self.imgIndex]
 
-        # Edit window title
-        self.setWindowTitle(self.list_img_path[self.imgIndex])
-        self.canvas.draw()
+                img = mpimg.imread(path)
+                height, width, channels = img.shape
+                self.resize(width,height)
 
-        # increase img index
-        self.imgIndex += 1
+                if isFirst:
+                    self.pyt = self.axes.imshow(img)
+                else:
+                    self.pyt.set_data(img)
+
+                # Edit window title
+                self.setWindowTitle(self.list_img_path[self.imgIndex])
+                self.canvas.draw()
+
+                # increase img index
+                self.imgIndex += 1
 
     def plotDraggablePoints(self, lineType, lineColor, rd):
         ''' Plot and define the 2 draggable points of the baseline '''
@@ -141,7 +153,8 @@ class Window(QWidget):
 
     def loadImg(self,directory):
         ''' store img name to list dict '''
-        for filename in sorted(os.listdir(directory), key=lambda x:int(x[:-4])):
+        img_directory = [i for i in os.listdir(directory) if not os.path.isdir(os.path.join(directory, i))]
+        for filename in sorted(img_directory, key=lambda x:int(x[:-4])):
             if filename.endswith(".jpg") or filename.endswith(".png"):
                 self.list_img_path.append(filename)
             else:
@@ -149,12 +162,13 @@ class Window(QWidget):
 
     def showPosition(self):
         ''' display current 4 points position '''
-        for pts in self.list_points:
-            print pts.get_position()
+        for lineType, pts in zip(self.list_points_type,self.list_points):
+            print lineType,pts.get_position()
         print ""
 
     def addNewLine(self,select):
         ''' add a new line points to figure '''
+        self.saveFlag = False
         rd = random.randint(10,99)
         lineType = ''
         lineColor = ''
@@ -162,12 +176,15 @@ class Window(QWidget):
         if select == 1:
             lineType = '-'
             lineColor = 'r'
+            self.list_points_type.append('White')
         elif select == 2:
             lineType = '--'
             lineColor = 'r'
+            self.list_points_type.append('WhiteDash')
         elif select == 3:
             lineType = '-'
             lineColor = 'b'
+            self.list_points_type.append('Yellow')
 
         if select != 0:
             self.plotDraggablePoints(lineType,lineColor,rd)
@@ -183,6 +200,14 @@ class Window(QWidget):
 
         if self.axes.patches:
             self.axes.patches[-1].remove()
+
+        if self.list_points_type:
+            self.list_points_type.pop()
+
+        if self.list_points_type:
+            self.saveFlag = False
+        else:
+            self.saveFlag = True
 
 
     def butconnect(self):
@@ -200,6 +225,56 @@ class Window(QWidget):
     def savePng(self):
         ''' save current figure to png '''
         self.figure.savefig('test.png')
+
+    def saveText(self,img_path):
+        ''' save line type and positions to txt '''
+        outputName = img_path+"label/"+self.list_img_path[self.imgIndex-1][:-4]
+        with open(outputName+".txt", "w") as text_file:
+            for lineType, pts in zip(self.list_points_type,self.list_points):
+                pos = pts.get_position()
+                text_file.write("%s," % lineType)
+                for index, (x,y) in enumerate(pos):
+                    text_file.write("%s,%s" % (x,y))
+                    if index != len(pos)-1:
+                        text_file.write(",")
+                text_file.write("\n")
+
+        self.saveFlag = True
+
+    def msgBoxEvent(self):
+        msgBox = QMessageBox()
+        msgBox.setIcon(QMessageBox.Warning)
+        msgBox.setWindowTitle('WARNING')
+        msgBox.setText( "Your changes have not been saved.\nAre you sure you want to discard the changes?" )
+        msgBox.setInformativeText( "Press OK to continue, or Cancel to stay on the current page." )
+        msgBox.addButton( QMessageBox.Ok )
+        msgBox.addButton( QMessageBox.Cancel )
+
+        msgBox.setDefaultButton( QMessageBox.Cancel )
+        ret = msgBox.exec_()
+
+        if ret == QMessageBox.Ok:
+            if self.imgIndex == len(self.list_img_path):
+                self.saveFlag = False
+            else:
+                self.saveFlag = True
+            return True
+        else:
+            return False
+
+    def msgBoxReachEdgeEvent(self):
+        msgBox = QMessageBox()
+        msgBox.setIcon(QMessageBox.Warning)
+        msgBox.setWindowTitle('WARNING')
+        msgBox.setText( "Reach the end of image" )
+        msgBox.setInformativeText( "Press OK to continue" )
+        msgBox.addButton( QMessageBox.Ok )
+
+        msgBox.setDefaultButton( QMessageBox.Ok )
+        ret = msgBox.exec_()
+
+        if ret == QMessageBox.Ok:
+            return True
 
     def onclick(self,event):
         print 'button=%d, x=%d, y=%d, xdata=%f, ydata=%f'%(event.button, event.x, event.y, event.xdata, event.ydata)
