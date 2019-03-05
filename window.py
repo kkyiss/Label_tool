@@ -10,7 +10,6 @@ from matplotlib.figure import Figure
 from matplotlib.path import Path
 import matplotlib.patches as patches
 import matplotlib.image as mpimg
-import random, re
 
 # Personnal modules
 from drag import DraggablePoint
@@ -29,7 +28,7 @@ x4=200
 y4=500
 
 class Window(QWidget):
-    imgIndex = 0
+    imgIndex = -1
     saveFlag = True
 
     def __init__(self,path):
@@ -53,7 +52,6 @@ class Window(QWidget):
 
         # To store img path
         self.list_img_path = []
-#        self.loadImg(os.getcwd()+"/data/train/1492635012549702766")
         self.loadImg(img_path)
 
         # To generate output path
@@ -61,11 +59,14 @@ class Window(QWidget):
             os.makedirs(img_path+"label")
 
         # plot background image
-        self.plotBackGround(img_path,True)
+        self.plotBackGround(img_path,0,True)
 
         # Just some button connected to `plot` method
         loadImgButton = QPushButton('Load Image')
-        loadImgButton.clicked.connect(lambda: self.plotBackGround(img_path))
+        loadImgButton.clicked.connect(lambda: self.plotBackGround(img_path,0))
+
+        preImgButton = QPushButton('Pre Image')
+        preImgButton.clicked.connect(lambda: self.plotBackGround(img_path,1))
 
         curPosButton = QPushButton('Show current position')
         curPosButton.clicked.connect(self.showPosition)
@@ -86,6 +87,7 @@ class Window(QWidget):
         # Prepare a group button
         upperLayout = QHBoxLayout()
         upperLayout.addWidget(loadImgButton)
+        upperLayout.addWidget(preImgButton)
         upperLayout.addWidget(curPosButton)
         upperLayout.addWidget(addLaneButton)
 
@@ -101,18 +103,27 @@ class Window(QWidget):
         layout.addLayout(lowerLayout)
         self.setLayout(layout)
 
-    def plotBackGround(self,img_path,isFirst=False):
+    def plotBackGround(self,img_path,action,isFirst=False):
         ''' Plot background method '''
         isPlot = True
         isEdge = False
 
         # if not saved, popup message box
         if not isFirst and not self.saveFlag:
-            print 'msg box' #msg box
             isPlot = self.msgBoxEvent()
 
         if isPlot:
-            if self.imgIndex == len(self.list_img_path):
+            # increase img index
+            if action == 0 and self.imgIndex < len(self.list_img_path):
+                if self.imgIndex == -1 and isFirst == False :    # boundary scenario
+                    self.imgIndex += 1
+                self.imgIndex += 1
+            elif action == 1 and self.imgIndex > -1:
+                if self.imgIndex == len(self.list_img_path):
+                    self.imgIndex -= 1
+                self.imgIndex -= 1
+
+            if self.imgIndex == len(self.list_img_path) or (isFirst == False and self.imgIndex == -1):
                 isEdge = self.msgBoxReachEdgeEvent()
 
             if not isEdge:
@@ -120,9 +131,7 @@ class Window(QWidget):
                 while self.list_points:
                     self.delLastLine()
 
-#                path = os.getcwd()+ "/data/train/1492635012549702766/" + self.list_img_path[self.imgIndex]
                 path = img_path + "/" + self.list_img_path[self.imgIndex]
-
                 img = mpimg.imread(path)
                 height, width, channels = img.shape
                 self.resize(width,height)
@@ -132,16 +141,17 @@ class Window(QWidget):
                 else:
                     self.pyt.set_data(img)
 
+                # If label text exist, draw previous output
+                self.isLabelExist(img_path)
+
                 # Edit window title
                 self.setWindowTitle(self.list_img_path[self.imgIndex])
                 self.canvas.draw()
 
-                # increase img index
-                self.imgIndex += 1
 
-    def plotDraggablePoints(self, lineType, lineColor, rd):
+    def plotDraggablePoints(self, lineType, lineColor):
         ''' Plot and define the 2 draggable points of the baseline '''
-        verts = [(x1+rd, y1),(x2+rd, y2),(x3+rd, y3),(x4+rd, y4),]
+        verts = [(x1, y1),(x2, y2),(x3, y3),(x4, y4),]
         codes = [Path.MOVETO,Path.CURVE4,Path.CURVE4,Path.CURVE4,]
         path = Path(verts, codes)
         patch = patches.PathPatch(path, facecolor='none', edgecolor=lineColor, lw=3, linestyle=lineType)
@@ -169,7 +179,6 @@ class Window(QWidget):
     def addNewLine(self,select):
         ''' add a new line points to figure '''
         self.saveFlag = False
-        rd = random.randint(10,99)
         lineType = ''
         lineColor = ''
 
@@ -187,7 +196,7 @@ class Window(QWidget):
             self.list_points_type.append('Yellow')
 
         if select != 0:
-            self.plotDraggablePoints(lineType,lineColor,rd)
+            self.plotDraggablePoints(lineType,lineColor)
             self.butconnect()
 
     def delLastLine(self):
@@ -275,6 +284,34 @@ class Window(QWidget):
 
         if ret == QMessageBox.Ok:
             return True
+        else:
+            return False
+
+    def isLabelExist(self,img_path):
+        fileName = img_path+"label/"+self.list_img_path[self.imgIndex][:-4]+".txt"
+        select = ''
+        try:
+            with open(fileName, 'r') as f:
+                x = f.read().splitlines()
+                global x1,y1,x2,y2,x3,y3,x4,y4
+                tmpx1, tmpy1, tmpx2, tmpy2, tmpx3, tmpy3, tmpx4, tmpy4 = x1,y1,x2,y2,x3,y3,x4,y4
+                for line in x:
+                    select,xstr1,ystr1,xstr2,ystr2,xstr3,ystr3,xstr4,ystr4 = line.split(',')
+                    x1,y1,x2,y2,x3,y3,x4,y4 = float(xstr1),float(ystr1),float(xstr2),float(ystr2),float(xstr3),float(ystr3),float(xstr4),float(ystr4)
+
+                    if select == 'White':
+                        lineType = 1
+                    elif select == 'WhiteDash':
+                        lineType = 2
+                    elif select == 'Yellow':
+                        lineType = 3
+
+                    self.addNewLine(lineType)
+
+                x1,y1,x2,y2,x3,y3,x4,y4 = tmpx1, tmpy1, tmpx2, tmpy2, tmpx3, tmpy3, tmpx4, tmpy4
+
+        except IOError:
+            print "Could not read file:", fileName
 
     def onclick(self,event):
         print 'button=%d, x=%d, y=%d, xdata=%f, ydata=%f'%(event.button, event.x, event.y, event.xdata, event.ydata)
