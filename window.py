@@ -142,7 +142,9 @@ class Window(QWidget):
                     self.pyt.set_data(img)
 
                 # If label text exist, draw previous output
-                self.isLabelExist(img_path)
+                isLabel = self.isLabelExist(img_path,self.imgIndex)
+                if not isLabel and not isFirst:
+                    self.isLabelExist(img_path,self.imgIndex-1)
 
                 # Edit window title
                 self.setWindowTitle(self.list_img_path[self.imgIndex])
@@ -237,7 +239,7 @@ class Window(QWidget):
 
     def saveText(self,img_path):
         ''' save line type and positions to txt '''
-        outputName = img_path+"label/"+self.list_img_path[self.imgIndex-1][:-4]
+        outputName = img_path+"label/"+self.list_img_path[self.imgIndex][:-4]
         with open(outputName+".txt", "w") as text_file:
             for lineType, pts in zip(self.list_points_type,self.list_points):
                 pos = pts.get_position()
@@ -287,8 +289,8 @@ class Window(QWidget):
         else:
             return False
 
-    def isLabelExist(self,img_path):
-        fileName = img_path+"label/"+self.list_img_path[self.imgIndex][:-4]+".txt"
+    def isLabelExist(self,img_path,index):
+        fileName = img_path+"label/"+self.list_img_path[index][:-4]+".txt"
         select = ''
         try:
             with open(fileName, 'r') as f:
@@ -310,8 +312,10 @@ class Window(QWidget):
 
                 x1,y1,x2,y2,x3,y3,x4,y4 = tmpx1, tmpy1, tmpx2, tmpy2, tmpx3, tmpy3, tmpx4, tmpy4
 
+            return True
         except IOError:
             print "Could not read file:", fileName
+            return False
 
     def onclick(self,event):
         print 'button=%d, x=%d, y=%d, xdata=%f, ydata=%f'%(event.button, event.x, event.y, event.xdata, event.ydata)
