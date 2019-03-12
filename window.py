@@ -165,12 +165,18 @@ class Window(QWidget):
 
     def loadImg(self,directory):
         ''' store img name to list dict '''
-        img_directory = [i for i in os.listdir(directory) if not os.path.isdir(os.path.join(directory, i))]
-        for filename in sorted(img_directory, key=lambda x:int(x[:-4])):
-            if filename.endswith(".jpg") or filename.endswith(".png"):
-                self.list_img_path.append(filename)
-            else:
-                sys.exit("Filename not end with .jpg or .png")
+        try:
+            img_directory = [i for i in os.listdir(directory) if not os.path.isdir(os.path.join(directory, i))]
+            if not img_directory:
+                sys.exit("No such images to be founded!")
+
+            for filename in sorted(img_directory, key=lambda x:int(x[:-4])):
+                if filename.endswith(".jpg") or filename.endswith(".png"):
+                    self.list_img_path.append(filename)
+                else:
+                    sys.exit("Filename not end with .jpg or .png")
+        except Exception as e:
+            sys.exit(str(e))
 
     def showPosition(self):
         ''' display current 4 points position '''
