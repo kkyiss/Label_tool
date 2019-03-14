@@ -10,6 +10,9 @@ from matplotlib.figure import Figure
 from matplotlib.path import Path
 import matplotlib.patches as patches
 import matplotlib.image as mpimg
+import numpy as np
+import cv2
+
 
 # Personnal modules
 from drag import DraggablePoint
@@ -36,8 +39,12 @@ class Window(QWidget):
         img_path = os.getcwd()+ '/' +path
 
         # a figure instance to plot on
-        self.figure = Figure(tight_layout=True)
+        self.figure = Figure(tight_layout=True, dpi=96)
         self.axes = self.figure.add_subplot(111)
+        self.axes.set_axis_off()
+        self.axes.get_xaxis().set_visible(False)
+        self.axes.get_yaxis().set_visible(False)
+
 
         # this is the Canvas Widget that displays the `figure`
         # it takes the `figure` instance as a parameter to __init__
@@ -55,8 +62,11 @@ class Window(QWidget):
         self.loadImg(img_path)
 
         # To generate output path
-        if not os.path.exists(img_path+"label"):
-            os.makedirs(img_path+"label")
+        if not os.path.exists(img_path+"label_txt"):
+            os.makedirs(img_path+"label_txt")
+
+        if not os.path.exists(img_path+"label_png"):
+            os.makedirs(img_path+"label_png")
 
         # plot background image
         self.plotBackGround(img_path,0,True)
@@ -78,11 +88,8 @@ class Window(QWidget):
         delLaneButton = QPushButton('Del last Lane')
         delLaneButton.clicked.connect(self.delLastLine)
 
-        saveImgButton = QPushButton('Save as png')
-        saveImgButton.clicked.connect(self.savePng)
-
-        saveTextButton = QPushButton('Save as text')
-        saveTextButton.clicked.connect(lambda: self.saveText(img_path))
+        saveButton = QPushButton('Save')
+        saveButton.clicked.connect(lambda: self.saveAll(img_path))
 
         # Prepare a group button
         upperLayout = QHBoxLayout()
@@ -93,8 +100,7 @@ class Window(QWidget):
 
         lowerLayout = QHBoxLayout()
         lowerLayout.addWidget(delLaneButton)
-        lowerLayout.addWidget(saveImgButton)
-        lowerLayout.addWidget(saveTextButton)
+        lowerLayout.addWidget(saveButton)
 
         # set the layout
         layout = QVBoxLayout()
@@ -140,6 +146,18 @@ class Window(QWidget):
                     self.pyt = self.axes.imshow(img)
                 else:
                     self.pyt.set_data(img)
+
+                # initial (x,y) position in image range
+                global x1,y1,x2,y2,x3,y3,x4,y4
+                x_range = width - 0
+                y_range = height - 0
+
+                # Divide into six equal segments
+                x1,x2,x3,x4 = x_range*(4.0/6), x_range*(3.0/6), x_range*(2.0/6), x_range*(1.0/6)
+                y1,y2,y3,y4 = y_range*(1.0/6), y_range*(2.0/6), y_range*(3.0/6), y_range*(4.0/6)
+
+                # Produce an height*width black basemap
+                self.basemap = np.zeros([height,width,1], dtype=np.uint8)
 
                 # If label text exist, draw previous output
                 isLabel = self.isLabelExist(img_path,self.imgIndex)
@@ -239,13 +257,35 @@ class Window(QWidget):
             pts.disconnect()
         self.canvas.draw()
 
-    def savePng(self):
+    def savePng(self,img_path,inputName,outputName):
         ''' save current figure to png '''
-        self.figure.savefig('test.png')
+#        self.figure.savefig('test.png',bbox_inches='tight', pad_inches = 0)
+        with open(inputName+".txt", "r") as text_file:
+            text_line = [text_line.rstrip('\n') for text_line in text_file]
 
-    def saveText(self,img_path):
+        curvepoints = 20
+        thickness = 3
+        for item in text_line:
+            pos = item.split(',')
+            line_type, pos = pos[0],pos[1:]
+            nodes = self.bezierCurve(pos,curvepoints)
+            nodes = nodes.reshape((-1, 1, 2))
+
+            if line_type == 'White':
+                cv2.polylines(self.basemap, [nodes], False, (255, 0, 0), thickness)
+            elif line_type == 'WhiteDash':
+                cv2.polylines(self.basemap, [nodes], False, (200, 0, 0), thickness)
+            elif line_type == 'Yellow':
+                cv2.polylines(self.basemap, [nodes], False, (150, 0, 0), thickness)
+
+#            cv2.imshow('image',self.basemap)
+
+        cv2.imwrite(outputName, self.basemap)
+#        x = cv2.imread(outputName)
+#        print x[np.nonzero(x)]
+
+    def saveText(self,img_path,outputName):
         ''' save line type and positions to txt '''
-        outputName = img_path+"label/"+self.list_img_path[self.imgIndex][:-4]
         with open(outputName+".txt", "w") as text_file:
             for lineType, pts in zip(self.list_points_type,self.list_points):
                 pos = pts.get_position()
@@ -257,6 +297,13 @@ class Window(QWidget):
                 text_file.write("\n")
 
         self.saveFlag = True
+
+    def saveAll(self,img_path):
+        ''' save text and save png '''
+        f1 = img_path+"label_txt/"+self.list_img_path[self.imgIndex][:-4]
+        f2 = img_path+"label_png/"+self.list_img_path[self.imgIndex][:-4]+".png"
+        self.saveText(img_path,f1)
+        self.savePng(img_path,f1,f2)
 
     def msgBoxEvent(self):
         msgBox = QMessageBox()
@@ -296,7 +343,7 @@ class Window(QWidget):
             return False
 
     def isLabelExist(self,img_path,index):
-        fileName = img_path+"label/"+self.list_img_path[index][:-4]+".txt"
+        fileName = img_path+"label_txt/"+self.list_img_path[index][:-4]+".txt"
         select = ''
         try:
             with open(fileName, 'r') as f:
@@ -320,8 +367,20 @@ class Window(QWidget):
 
             return True
         except IOError:
-            print "Could not read file:", fileName
+#            print "Could not read file:", fileName
             return False
+
+    def bezierCurve(self,pos,num=2):
+        ''' bezier Curve formula
+        X = (1-t)^3A + 3t(1-t)^2B + 3t^2(1-t)C + t^3D
+        '''
+        x1,y1,x2,y2,x3,y3,x4,y4 = pos
+        x1,y1,x2,y2,x3,y3,x4,y4 = float(x1),float(y1),float(x2),float(y2),float(x3),float(y3),float(x4),float(y4)
+        T_list = np.arange(0., 1+1./num, 1./num)
+
+        X = [ pow(1-t,3)*x1 + 3*t*pow(1-t,2)*x2 + 3*pow(t,2)*(1-t)*x3 + pow(t,3)*x4 for t in T_list]
+        Y = [ pow(1-t,3)*y1 + 3*t*pow(1-t,2)*y2 + 3*pow(t,2)*(1-t)*y3 + pow(t,3)*y4 for t in T_list]
+        return np.array(zip(X,Y),dtype=np.int32)
 
     def onclick(self,event):
         print 'button=%d, x=%d, y=%d, xdata=%f, ydata=%f'%(event.button, event.x, event.y, event.xdata, event.ydata)
