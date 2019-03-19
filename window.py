@@ -382,6 +382,20 @@ class Window(QWidget):
         Y = [ pow(1-t,3)*y1 + 3*t*pow(1-t,2)*y2 + 3*pow(t,2)*(1-t)*y3 + pow(t,3)*y4 for t in T_list]
         return np.array(zip(X,Y),dtype=np.int32)
 
+    def closeEvent(self, event):
+        if not self.saveFlag:
+            msgBox = QMessageBox()
+            msgBox.setIcon(QMessageBox.Warning)
+            msgBox.setWindowTitle('WARNING')
+            msgBox.setText( "Your changes have not been saved.\nAre you sure you want to discard the changes?" )
+            msgBox.setInformativeText( "Press OK to exit, or Cancel to stay on the current page." )
+            msgBox.setStandardButtons(QMessageBox.Cancel | QMessageBox.Ok);
+            msgBox.setDefaultButton(QMessageBox.Cancel);
+            if msgBox.exec_() == QMessageBox.Ok:
+                event.accept()
+            else:
+                event.ignore()
+
     def onclick(self,event):
         print 'button=%d, x=%d, y=%d, xdata=%f, ydata=%f'%(event.button, event.x, event.y, event.xdata, event.ydata)
 
