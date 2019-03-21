@@ -36,7 +36,7 @@ class Window(QWidget):
 
     def __init__(self,path):
         super(Window,self).__init__()
-        img_path = os.getcwd()+ '/' +path
+        self.img_path = os.getcwd()+ '/' +path
 
         # a figure instance to plot on
         self.figure = Figure(tight_layout=True, dpi=96)
@@ -59,24 +59,24 @@ class Window(QWidget):
 
         # To store img path
         self.list_img_path = []
-        self.loadImg(img_path)
+        self.loadImg(self.img_path)
 
         # To generate output path
-        if not os.path.exists(img_path+"label_txt"):
-            os.makedirs(img_path+"label_txt")
+        if not os.path.exists(self.img_path+"label_txt"):
+            os.makedirs(self.img_path+"label_txt")
 
-        if not os.path.exists(img_path+"label_png"):
-            os.makedirs(img_path+"label_png")
+        if not os.path.exists(self.img_path+"label_png"):
+            os.makedirs(self.img_path+"label_png")
 
         # plot background image
-        self.plotBackGround(img_path,0,True)
+        self.plotBackGround(self.img_path,0,True)
 
         # Just some button connected to `plot` method
         loadImgButton = QPushButton('Load Image')
-        loadImgButton.clicked.connect(lambda: self.plotBackGround(img_path,0))
+        loadImgButton.clicked.connect(lambda: self.plotBackGround(self.img_path,0))
 
         preImgButton = QPushButton('Pre Image')
-        preImgButton.clicked.connect(lambda: self.plotBackGround(img_path,1))
+        preImgButton.clicked.connect(lambda: self.plotBackGround(self.img_path,1))
 
         curPosButton = QPushButton('Show current position')
         curPosButton.clicked.connect(self.showPosition)
@@ -89,7 +89,7 @@ class Window(QWidget):
         delLaneButton.clicked.connect(self.delLastLine)
 
         saveButton = QPushButton('Save')
-        saveButton.clicked.connect(lambda: self.saveAll(img_path))
+        saveButton.clicked.connect(lambda: self.saveAll(self.img_path))
 
         # Prepare a group button
         upperLayout = QHBoxLayout()
@@ -114,9 +114,15 @@ class Window(QWidget):
         isPlot = True
         isEdge = False
 
-        # if not saved, popup message box
-        if not isFirst and not self.saveFlag:
-            isPlot = self.msgBoxEvent()
+        if not isFirst:
+            # if not saved, popup message box
+            if self.imgIndex == len(self.list_img_path):
+                self.saveFlag = self.isPosNotChange(img_path,self.imgIndex-1)
+            else:
+                self.saveFlag = self.isPosNotChange(img_path,self.imgIndex)
+
+            if not self.saveFlag:
+                isPlot = self.msgBoxEvent()
 
         if isPlot:
             # increase img index
@@ -168,7 +174,6 @@ class Window(QWidget):
                 self.setWindowTitle(self.list_img_path[self.imgIndex])
                 self.canvas.draw()
 
-
     def plotDraggablePoints(self, lineType, lineColor):
         ''' Plot and define the 2 draggable points of the baseline '''
         verts = [(x1, y1),(x2, y2),(x3, y3),(x4, y4),]
@@ -204,7 +209,6 @@ class Window(QWidget):
 
     def addNewLine(self,select):
         ''' add a new line points to figure '''
-        self.saveFlag = False
         lineType = ''
         lineColor = ''
 
@@ -239,11 +243,6 @@ class Window(QWidget):
         if self.list_points_type:
             self.list_points_type.pop()
 
-        if self.list_points_type:
-            self.saveFlag = False
-        else:
-            self.saveFlag = True
-
 
     def butconnect(self):
         ''' connect current DraggablePoints '''
@@ -257,7 +256,7 @@ class Window(QWidget):
             pts.disconnect()
         self.canvas.draw()
 
-    def savePng(self,img_path,inputName,outputName):
+    def savePng(self,inputName,outputName):
         ''' save current figure to png '''
 #        self.figure.savefig('test.png',bbox_inches='tight', pad_inches = 0)
         with open(inputName+".txt", "r") as text_file:
@@ -284,7 +283,7 @@ class Window(QWidget):
 #        x = cv2.imread(outputName)
 #        print x[np.nonzero(x)]
 
-    def saveText(self,img_path,outputName):
+    def saveText(self,outputName):
         ''' save line type and positions to txt '''
         with open(outputName+".txt", "w") as text_file:
             for lineType, pts in zip(self.list_points_type,self.list_points):
@@ -302,8 +301,8 @@ class Window(QWidget):
         ''' save text and save png '''
         f1 = img_path+"label_txt/"+self.list_img_path[self.imgIndex][:-4]
         f2 = img_path+"label_png/"+self.list_img_path[self.imgIndex][:-4]+".png"
-        self.saveText(img_path,f1)
-        self.savePng(img_path,f1,f2)
+        self.saveText(f1)
+        self.savePng(f1,f2)
 
     def msgBoxEvent(self):
         msgBox = QMessageBox()
@@ -342,6 +341,42 @@ class Window(QWidget):
         else:
             return False
 
+    def isPosNotChange(self,img_path,index):
+        # load label txt
+        fileName = img_path+"label_txt/"+self.list_img_path[index][:-4]+".txt"
+        lab = []
+        labnp = np.array(lab)
+        curnp = np.array(lab)
+        try:
+            with open(fileName, 'r') as f:
+                x = f.read().splitlines()
+                for line in x:
+                    select,xstr1,ystr1,xstr2,ystr2,xstr3,ystr3,xstr4,ystr4 = line.split(',')
+                    x1,y1,x2,y2,x3,y3,x4,y4 = float(xstr1),float(ystr1),float(xstr2),float(ystr2),float(xstr3),float(ystr3),float(xstr4),float(ystr4)
+                    lab.append([x1,y1,x2,y2,x3,y3,x4,y4])
+                labnp = np.array(lab)
+
+        except IOError:
+            lab = []
+
+        # current dp
+        if self.list_points:
+            curnp = self.list_points[0].get_position()
+            for pts in range(1,len(self.list_points)):
+                curnp = np.vstack((curnp,self.list_points[pts].get_position()))
+            curnp = curnp.reshape(-1,8)
+
+        # check xdim
+        if labnp.shape[0] != curnp.shape[0]:
+            return False
+
+        # check content
+        for l in curnp:
+            if l not in labnp:
+                return False
+
+        return True
+
     def isLabelExist(self,img_path,index):
         fileName = img_path+"label_txt/"+self.list_img_path[index][:-4]+".txt"
         select = ''
@@ -364,6 +399,7 @@ class Window(QWidget):
                     self.addNewLine(lineType)
 
                 x1,y1,x2,y2,x3,y3,x4,y4 = tmpx1, tmpy1, tmpx2, tmpy2, tmpx3, tmpy3, tmpx4, tmpy4
+                self.saveFlag = True
 
             return True
         except IOError:
@@ -383,6 +419,11 @@ class Window(QWidget):
         return np.array(zip(X,Y),dtype=np.int32)
 
     def closeEvent(self, event):
+        if self.imgIndex == len(self.list_img_path):
+            self.saveFlag = self.isPosNotChange(self.img_path,self.imgIndex-1)
+        else:
+            self.saveFlag = self.isPosNotChange(self.img_path,self.imgIndex)
+
         if not self.saveFlag:
             msgBox = QMessageBox()
             msgBox.setIcon(QMessageBox.Warning)
