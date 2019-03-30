@@ -299,8 +299,15 @@ class Window(QWidget):
 
     def saveAll(self,img_path):
         ''' save text and save png '''
-        f1 = img_path+"label_txt/"+self.list_img_path[self.imgIndex][:-4]
-        f2 = img_path+"label_png/"+self.list_img_path[self.imgIndex][:-4]+".png"
+        ind = self.imgIndex
+        if self.imgIndex == len(self.list_img_path):
+            ind = ind - 1
+
+        if self.imgIndex == -1:
+            ind = ind + 1
+
+        f1 = img_path+"label_txt/"+self.list_img_path[ind][:-4]
+        f2 = img_path+"label_png/"+self.list_img_path[ind][:-4]+".png"
         self.saveText(f1)
         self.savePng(f1,f2)
 
